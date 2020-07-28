@@ -1,52 +1,30 @@
 const express = require('express');
 
 const router = new express.Router();
-
+const auth = require('../middleware/auth');
 const User = require('../models/user');
 
 //Create user
 router.post('/users', async (req, res) => {
     
+    let user = new User(req.body);
     try {
-        let user = new User(req.body);
         await user.save()
-        res.status(201).send(user)  
+        let token = await user.generateAuthToken();
+        res.status(201).send({user, token})  
     }
     catch(err) {
         res.status(400).send(err)
     };
 })
 
-//Get all users
-router.get('/users', async (req, res) => {
-    
-    try {
-        let users = await User.find({})
-        res.send(users);
-    } catch(err) {
-        res.status(500).send(err)
-    }
-})
-
-//Get single user
-router.get('/users/:id', async (req, res) => {
-
-    const id = req.params.id;
-    try {
-
-        let user = await User.findById(id)
-        if(!user) 
-            return res.status(404).send();
-        res.send(user)
-
-    } catch(err){
-        res.status(500).send(err)
-    }
+//Get amy own user
+router.get('/users/me', auth , async (req, res) => {
+        res.send(req.user);
 })
 
 //Update a user
-router.patch('/users/:id', async (req, res) => {
-    let id = req.params.id;
+router.patch('/users/me', auth, async (req, res) => {
 
     const updates = Object.keys(req.body);
     const allowedUpdates = ['name', 'email', 'password', 'age']
@@ -57,33 +35,55 @@ router.patch('/users/:id', async (req, res) => {
 
     try {
 
-        let user = await User.findByIdAndUpdate(id, req.body, {
-            new: true,
-            runValidators: true
-        });
+        updates.forEach((value) => req.user[value] = req.body[value])
+        await req.user.save()
+        res.send(req.user)
 
-        if(!user) 
-            return res.status(404).send();
-
-        res.send(user)
     } catch (err) {
         res.status(400).send(err);
     }
 })
 
 //Delete a user
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/me', auth,  async (req, res) => {
 
-    let id = req.params.id;
     try {
-        let user = await User.findByIdAndDelete(id);
 
-        if(!user) 
-            return res.status(404).send();
+        await req.user.remove()
+        res.send(req.user)
 
-        res.send(user)
     } catch (err) {
         res.status(500).send(err);
+    }
+})
+
+router.post('/users/login', async (req, res) => {
+    try {
+        let user = await User.findByCredentials(req.body.email, req.body.password);
+        let token = await user.generateAuthToken()
+        res.send({user, token});
+    
+    } catch (e) {
+        res.status(400).send()
+    }
+})
+
+router.post('/users/logoutAll', auth, async (req, res) => {
+    req.user.tokens = []
+    await req.user.save()
+    res.send()
+})
+
+router.post('/users/logout', auth, async (req, res) => {
+    try {
+        console.log('Req', req.user.tokens)
+        console.log('TOken', req.token)
+        req.user.tokens = req.user.tokens.filter((token)=> token.token !== req.token)
+        console.log(req.user.tokens)
+        await req.user.save()
+        res.send()
+    } catch (e) {
+        res.status(500).send()
     }
 })
 

@@ -4,8 +4,12 @@ const Task = require('../models/task')
 
 const router = new express.Router();
 
+const auth = require('../middleware/auth')
+
 //Create a task
-router.post('/tasks', async (req, res) => {
+router.post('/tasks', auth, async (req, res) => {
+    
+    req.body.author = req.user._id;
 
     try {
         let task = new Task(req.body)
@@ -17,22 +21,25 @@ router.post('/tasks', async (req, res) => {
 })
 
 //Get all tasks
-router.get('/tasks', async (req, res)=>{
+router.get('/tasks', auth, async (req, res)=>{
     
     try {
-        let tasks = await Task.find({})
-        res.send(tasks)
+        await req.user.populate('tasks').execPopulate()
+        res.send(req.user.tasks)
     } catch (err) {
         res.status(500).send(err)
     };
 } )
 
 //Get single task
-router.get('/tasks/:id', async (req, res)=> {
+router.get('/tasks/:id', auth, async (req, res)=> {
     
     const id = req.params.id;
     try {
-        let task = await Task.findById(id)
+        let task = await Task.findOne({
+            _id: id,
+            author: req.user._id
+        })
         if(!task)
             return res.status(404).send()
         res.send(task)
@@ -42,8 +49,7 @@ router.get('/tasks/:id', async (req, res)=> {
 })
 
 //Update a task
-router.patch('/tasks/:id', async (req, res) => {
-    let id = req.params.id;
+router.patch('/tasks/:id', auth, async (req, res) => {
 
     const updates = Object.keys(req.body);
     const allowedUpdates = ['description', 'completed']
@@ -54,13 +60,16 @@ router.patch('/tasks/:id', async (req, res) => {
 
     try {
 
-        let task = await Task.findByIdAndUpdate(id, req.body, {
-            new: true,
-            runValidators: true
-        });
+        let task = await Task.findOne({
+            author: req.user._id,
+            _id: req.params.id
+        })
 
         if(!task) 
             return res.status(404).send();
+
+        updates.forEach((update)=> task[update] = req.body[update])
+        await task.save()
 
         res.send(task)
     } catch (err) {
@@ -69,11 +78,14 @@ router.patch('/tasks/:id', async (req, res) => {
 })
 
 //Delete a task
-router.delete('/tasks/:id', async (req, res) => {
+router.delete('/tasks/:id', auth, async (req, res) => {
     
     let id = req.params.id;
     try {
-        let task = await Task.findByIdAndDelete(id);
+        let task = await Task.findOneAndDelete({
+            author: req.user._id,
+            _id: id
+        })
         
         if(!task) 
             return res.status(404).send();
