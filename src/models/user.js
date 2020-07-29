@@ -44,7 +44,10 @@ let userSchema = new mongoose.Schema({
             type: String,
             required: true
         }
-    }]
+    }],
+    avatar: {
+        type: Buffer
+    }
 }, {
     timestamps: true
 })
@@ -86,7 +89,7 @@ userSchema.statics.findByCredentials = async (email, password) => {
 }
 //Generate auth tpken with _id embedded
 userSchema.methods.generateAuthToken = async function() {
-    let token = jsonwebtoken.sign({_id: this._id.toString()}, 'secretstring')
+    let token = jsonwebtoken.sign({_id: this._id.toString()}, process.env.JWT_SECRET)
     this.tokens = this.tokens.concat({token})
     await this.save()
     return token
@@ -98,6 +101,7 @@ userSchema.methods.toJSON = function () {
 
     delete userObj.password
     delete userObj.tokens
+    delete userObj.avatar
 
     return userObj
 }
