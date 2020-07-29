@@ -1,24 +1,9 @@
 const supertest = require('supertest')
 const app = require('../src/app')
 const User = require('../src/models/user')
-const { ObjectId } = require('mongodb')
-const jwt = require('jsonwebtoken');
+const { userOne, userOneId, setupDatabase} = require('./fixtures/db')
 
-const userOneId = new ObjectId()
-const userOne = {
-    _id: userOneId,
-    name: "Test User", 
-    email: "test@test.com",
-    password: "MyPass777!",
-    tokens: [{
-        token: jwt.sign({_id: userOneId}, process.env.JWT_SECRET)
-    }]
-}
-
-beforeEach(async ()=> {
-    await User.deleteMany()
-    await new User(userOne).save()
-})
+beforeEach(setupDatabase)
 
 
 test('Should signup a new user', async () => {
@@ -65,7 +50,7 @@ test('Should login a user', async () => {
     expect(response.body.token).toBe(user.tokens[1].token)
 });
 
-test('Should not login nonesixtent user', async () => {
+test('Should not login nonexistent user', async () => {
     await supertest(app)
     .post('/users/login')
     .send({
